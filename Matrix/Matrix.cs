@@ -416,6 +416,8 @@ namespace Matrices
                     }
                 }
             }
+
+            return this;
         }
 
         /// <summary>
