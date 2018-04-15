@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Data;
+using System.Runtime.InteropServices.WindowsRuntime;
+using System.Text;
 
 namespace Matrices
 {
@@ -45,18 +48,45 @@ namespace Matrices
         /// <summary>
         /// Lower matrix
         /// </summary>
-        public Matrix L;
+        public Matrix L
+        {
+            get
+            {
+                if (LowerMatrix == null)
+                {
+                    MakeLU();
+                }
+
+                return LowerMatrix;
+            }
+        }
+        private Matrix LowerMatrix;
 
         /// <summary>
         /// Upper matrix
         /// </summary>
-        public Matrix U;
+        public Matrix U
+        {
+            get
+            {
+                if (UpperMatrix == null)
+                {
+                    MakeLU();
+                }
+
+                return UpperMatrix;
+            }
+        }
+        private Matrix UpperMatrix;
 
         /// <summary>
         /// Permutations vector
         /// </summary>
         private int[] PermutationVector;
 
+        /// <summary>
+        /// Gets transposed version of matrix
+        /// </summary>
         public Matrix Transposed
         {
             get
@@ -81,11 +111,14 @@ namespace Matrices
             }
         }
 
+        /// <summary>
+        /// Use this matrix to achive division of matrix A by this one
+        /// </summary>
         public Matrix Inverted
         {
             get
             {
-                if (L == null) MakeLU();
+                if (LowerMatrix == null) MakeLU();
 
                 var inv = new Matrix(rows, cols);
 
@@ -109,7 +142,7 @@ namespace Matrices
         {
             get
             {
-                if (L == null) MakeLU();
+                if (LowerMatrix == null) MakeLU();
 
                 Matrix matrix = Zeros(rows, cols);
                 for (int i = 0; i < rows; i++)
@@ -127,9 +160,9 @@ namespace Matrices
         {
             get
             {
-                if (L == null) MakeLU();
+                if (LowerMatrix == null) MakeLU();
                 double det = detOfP;
-                for (int i = 0; i < rows; i++) det *= U[i, i];
+                for (int i = 0; i < rows; i++) det *= UpperMatrix[i, i];
                 return det;
             }
         }
@@ -361,8 +394,8 @@ namespace Matrices
         private Matrix MakeLU()
         {
             if (!IsSquare) throw new Exception("The matrix is not square!");
-            L = Matrix.Identity(rows, cols);
-            U = this.Copy();
+            LowerMatrix = Matrix.Identity(rows, cols);
+            UpperMatrix = this.Copy();
 
             PermutationVector = new int[rows];
             for (int i = 0; i < rows; i++) PermutationVector[i] = i;
@@ -377,9 +410,9 @@ namespace Matrices
                 p = 0;
                 for (int i = k; i < rows; i++)      // find the row with the biggest pivot
                 {
-                    if (System.Math.Abs(U[i, k]) > p)
+                    if (System.Math.Abs(UpperMatrix[i, k]) > p)
                     {
-                        p = System.Math.Abs(U[i, k]);
+                        p = System.Math.Abs(UpperMatrix[i, k]);
                         k0 = i;
                     }
                 }
@@ -393,26 +426,26 @@ namespace Matrices
 
                 for (int i = 0; i < k; i++)
                 {
-                    pom2 = L[k, i];
-                    L[k, i] = L[k0, i];
-                    L[k0, i] = pom2;
+                    pom2 = LowerMatrix[k, i];
+                    LowerMatrix[k, i] = LowerMatrix[k0, i];
+                    LowerMatrix[k0, i] = pom2;
                 }
 
                 if (k != k0) detOfP *= -1;
 
                 for (int i = 0; i < rows; i++)
                 {
-                    pom2 = U[k, i];
-                    U[k, i] = U[k0, i];
-                    U[k0, i] = pom2;
+                    pom2 = UpperMatrix[k, i];
+                    UpperMatrix[k, i] = UpperMatrix[k0, i];
+                    UpperMatrix[k0, i] = pom2;
                 }
 
                 for (int i = k + 1; i < rows; i++)
                 {
-                    L[i, k] = U[i, k] / U[k, k];
+                    LowerMatrix[i, k] = UpperMatrix[i, k] / UpperMatrix[k, k];
                     for (int j = k; j < rows; j++)
                     {
-                        U[i, j] -= L[i, k] * U[k, j];
+                        UpperMatrix[i, j] -= LowerMatrix[i, k] * UpperMatrix[k, j];
                     }
                 }
             }
@@ -428,7 +461,7 @@ namespace Matrices
         /// <returns>Matrix</returns>
         public static Matrix SubsForth(Matrix A, Matrix b)
         {
-            if (A.L == null) A.MakeLU();
+            if (A.LowerMatrix == null) A.MakeLU();
             var n = A.RowsCount;
             var x = new Matrix(n, 1);
 
@@ -449,7 +482,7 @@ namespace Matrices
         /// <returns>Matrix</returns>
         public static Matrix SubsBack(Matrix A, Matrix b)
         {
-            if (A.L == null) A.MakeLU();
+            if (A.LowerMatrix == null) A.MakeLU();
             var n = A.RowsCount;
             var x = new Matrix(n, 1);
 
@@ -471,13 +504,13 @@ namespace Matrices
         {
             if (rows != cols) throw new Exception("Solve: Matrix is not square.");
             if (rows != vector.RowsCount) throw new Exception("Solve: wrong number of results in solution vector.");
-            if (L == null) MakeLU();
+            if (LowerMatrix == null) MakeLU();
 
             var b = new Matrix(rows, 1);
             for (int i = 0; i < rows; i++) b[i, 0] = vector[PermutationVector[i], 0];   // switch two items in "v" due to permutation matrix
 
-            var z = SubsForth(L, b);
-            var x = SubsBack(U, z);
+            var z = SubsForth(LowerMatrix, b);
+            var x = SubsBack(UpperMatrix, z);
 
             return x;
 
@@ -616,6 +649,25 @@ namespace Matrices
             {
                 throw new Exception("Matrix addition error", ex);
             }
+        }
+
+        public override string ToString()
+        {
+            var sb = new StringBuilder();
+            sb.Append("[");
+            for (var i = 0; i < RowsCount; i++)
+            {
+                for (var j = 0; j < ColumnCount; j++)
+                {
+                    sb.Append(this[i, j]);
+                    sb.Append(", ");
+                }
+
+                sb.Append(Environment.NewLine);
+            }
+
+            sb.Append("]");
+            return sb.ToString();
         }
     }
 }
